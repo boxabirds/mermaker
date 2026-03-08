@@ -1,0 +1,23 @@
+{
+  "name": "mermaker",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Direct manipulation editor for mermaid diagrams",
+  "scripts": {
+    "kill:3456": "lsof -ti :3456 | xargs kill -9 2>/dev/null; true",
+    "dev": "bun run kill:3456 && bunx serve . -l 3456",
+    "test:unit": "node --test tests/unit/**/*.test.mjs",
+    "test:integration": "node --test tests/integration/**/*.test.mjs",
+    "test:e2e": "bun run kill:3456 && bunx serve . -l 3456 & sleep 2 && node --test tests/e2e/**/*.test.mjs; EXIT=$?; bun run kill:3456; exit $EXIT",
+    "test:smoke": "bun smoke-test.mjs",
+    "test": "node --test tests/unit/**/*.test.mjs tests/integration/**/*.test.mjs"
+  },
+  "keywords": ["mermaid", "diagram", "editor", "svg"],
+  "license": "ISC",
+  "dependencies": {
+    "mermaid": "^11.12.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

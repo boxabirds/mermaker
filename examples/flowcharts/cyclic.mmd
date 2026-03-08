@@ -1,0 +1,5 @@
+flowchart TD
+    A[Request] --> B[Process]
+    B --> C{Retry?}
+    C -->|Yes| A
+    C -->|No| D[Complete]

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaker</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "mermaid": "./node_modules/mermaid/dist/mermaid.esm.mjs"
+      }
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f5f5f5;
+    }
+
+    header {
+      padding: 8px 16px;
+      background: #2d3748;
+      color: #e2e8f0;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .editor {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .text-pane {
+      width: 40%;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #cbd5e0;
+      background: #fff;
+    }
+
+    .text-pane textarea {
+      flex: 1;
+      resize: none;
+      border: none;
+      outline: none;
+      padding: 16px;
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      tab-size: 2;
+      color: #2d3748;
+      background: #fff;
+    }
+
+    .diagram-pane {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #fafafa;
+    }
+
+    .mm-canvas {
+      display: block;
+    }
+
+    .mm-error {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      padding: 8px 12px;
+      background: #fed7d7;
+      color: #c53030;
+      border: 1px solid #feb2b2;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: monospace;
+      z-index: 10;
+    }
+
+    .mm-node:hover .mm-shape {
+      stroke: #2b6cb0;
+      stroke-width: 2.5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mermaker</h1>
+    <span>Direct manipulation mermaid editor</span>
+    <a href="examples/gallery.html" style="color: #90cdf4; text-decoration: none; margin-left: auto;">Examples</a>
+  </header>
+  <div class="editor">
+    <div class="text-pane">
+      <textarea id="mermaid-input" spellcheck="false" placeholder="Paste mermaid flowchart here...">flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Do something]
+    B -->|No| D[Do something else]
+    C --> E[End]
+    D --> E</textarea>
+    </div>
+    <div class="diagram-pane" id="diagram-container">
+    </div>
+  </div>
+
+  <script type="module">
+    import { init } from './src/mermaker.js';
+
+    const textarea = document.getElementById('mermaid-input');
+    const container = document.getElementById('diagram-container');
+
+    init(textarea, container).catch(err => {
+      console.error('Mermaker init failed:', err);
+    });
+  </script>
+</body>
+</html>
