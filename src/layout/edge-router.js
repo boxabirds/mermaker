@@ -1,5 +1,5 @@
 import { getLibavoid } from './wasm-loader.js';
-import { ARROW_SIZE } from '../util/constants.js';
+import { ARROW_SIZE, ARROW_TIP_GAP } from '../util/constants.js';
 import { clipToNodeBorder } from '../util/geometry.js';
 
 /** libavoid routing flag for orthogonal routing (Router constructor — currently unused by WASM) */
@@ -8,18 +8,30 @@ const ORTHOGONAL_ROUTING = 2;
 /** Per-connector routing type: orthogonal produces only H/V segments */
 const CONN_TYPE_ORTHOGONAL = 2;
 
-/** libavoid routing option indices (from wasm.rs) */
+/** libavoid routing option indices (must match wasm.rs constants) */
 const ROUTING_OPTION = Object.freeze({
-  NUDGE_ORTHOGONAL_ROUTES: 0,
-  NUDGE_SHARED_PATHS: 2,
-  NUDGE_ORTHOGONAL_TOUCHING_COLINEAR: 3,
-  PERFORM_UNIFYING_NUDGING_STEP: 4,
-  NUDGE_ORTHOGONAL_SEGMENTS_CONNECTED_TO_SHAPES: 7,
+  NUDGE_ORTHOGONAL_SEGMENTS: 0,
+  IMPROVE_HYPEREDGE_ROUTES: 1,
+  PENALISE_PORT_DIRECTIONS: 2,
+  NUDGE_COLINEAR_SEGMENTS: 3,
+  UNIFYING_NUDGING_STEP: 4,
+  IMPROVE_HYPEREDGE_ADD_DELETE: 5,
+  NUDGE_SHARED_PATHS_COMMON_END: 6,
+  NUDGE_SEGMENTS_CONNECTED_TO_SHAPES: 7,
+  PENALISE_SHARED_PATHS_AT_CONN_ENDS: 8,
 });
 
-/** libavoid routing parameter indices */
+/** libavoid routing parameter indices (must match wasm.rs constants) */
 const ROUTING_PARAM = Object.freeze({
-  IDEAL_NUDGING_DISTANCE: 3,
+  SEGMENT_PENALTY: 0,
+  BEND_PENALTY: 1,
+  CROSSING_PENALTY: 2,
+  CLUSTER_CROSSING_PENALTY: 3,
+  FIXED_SHARED_PATH_PENALTY: 4,
+  PORT_DIRECTION_PENALTY: 5,
+  SHAPE_BUFFER_DISTANCE: 6,
+  IDEAL_NUDGING_DISTANCE: 7,
+  REVERSE_DIRECTION_PENALTY: 8,
 });
 
 /** Nudging gap between parallel edge segments (px) */
@@ -64,10 +76,12 @@ export async function routeEdges(positions, spec) {
     const router = new libavoid.Router(ORTHOGONAL_ROUTING);
     router.setTransactionUse(true);
 
-    // Enable nudging
-    router.setRoutingOption(ROUTING_OPTION.NUDGE_ORTHOGONAL_ROUTES, true);
-    router.setRoutingOption(ROUTING_OPTION.NUDGE_SHARED_PATHS, true);
-    router.setRoutingOption(ROUTING_OPTION.PERFORM_UNIFYING_NUDGING_STEP, true);
+    // Enable nudging to separate parallel edge segments
+    router.setRoutingOption(ROUTING_OPTION.NUDGE_ORTHOGONAL_SEGMENTS, true);
+    router.setRoutingOption(ROUTING_OPTION.NUDGE_COLINEAR_SEGMENTS, true);
+    router.setRoutingOption(ROUTING_OPTION.UNIFYING_NUDGING_STEP, true);
+    router.setRoutingOption(ROUTING_OPTION.NUDGE_SHARED_PATHS_COMMON_END, true);
+    router.setRoutingOption(ROUTING_OPTION.NUDGE_SEGMENTS_CONNECTED_TO_SHAPES, true);
     router.setRoutingParameter(ROUTING_PARAM.IDEAL_NUDGING_DISTANCE, NUDGE_DISTANCE);
 
     // Add node obstacles
@@ -273,10 +287,19 @@ export function clipRouterWaypoints(waypoints, srcPos, tgtPos) {
 
 /**
  * Clip a 2-waypoint (straight) route at node borders.
+ * Pushes the target endpoint outward by ARROW_TIP_GAP for arrowhead clearance.
  */
 function clipStraightRoute(waypoints, srcPos, tgtPos) {
   const srcClipped = clipToNodeBorder(srcPos, waypoints[1][0], waypoints[1][1]);
   const tgtClipped = clipToNodeBorder(tgtPos, srcClipped[0], srcClipped[1]);
+  // Push target clip point outward along the approach direction
+  const dx = tgtClipped[0] - tgtPos.x;
+  const dy = tgtClipped[1] - tgtPos.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > 0) {
+    tgtClipped[0] += (dx / dist) * ARROW_TIP_GAP;
+    tgtClipped[1] += (dy / dist) * ARROW_TIP_GAP;
+  }
   return [srcClipped, tgtClipped];
 }
 
@@ -330,9 +353,12 @@ function findLastOutside(waypoints, nodePos, tolerance) {
 }
 
 /**
- * Clip an orthogonal segment at a node border.
+ * Clip an orthogonal segment at a node border, with outward offset
+ * for arrowhead clearance.
+ *
  * Segment goes from `inside` (inside node) toward `outside` (outside node).
- * Returns the border crossing point.
+ * Returns a point ARROW_TIP_GAP pixels outside the border crossing,
+ * so the arrow tip (placed at this point) has visible clearance from the node.
  */
 function clipAtBorder(nodePos, inside, outside) {
   const halfW = nodePos.width / 2;
@@ -341,13 +367,11 @@ function clipAtBorder(nodePos, inside, outside) {
   const dy = Math.abs(inside[1] - outside[1]);
 
   if (dx <= dy) {
-    const borderY = outside[1] < inside[1]
-      ? nodePos.y - halfH
-      : nodePos.y + halfH;
-    return [inside[0], borderY];
+    const sign = outside[1] < inside[1] ? -1 : 1;
+    const borderY = nodePos.y + sign * halfH;
+    return [inside[0], borderY + sign * ARROW_TIP_GAP];
   }
-  const borderX = outside[0] < inside[0]
-    ? nodePos.x - halfW
-    : nodePos.x + halfW;
-  return [borderX, inside[1]];
+  const sign = outside[0] < inside[0] ? -1 : 1;
+  const borderX = nodePos.x + sign * halfW;
+  return [borderX + sign * ARROW_TIP_GAP, inside[1]];
 }

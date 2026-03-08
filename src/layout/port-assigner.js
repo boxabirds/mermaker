@@ -202,40 +202,16 @@ const ORTHO_TOLERANCE = 1;
  * replace the multi-waypoint route with a straight 2-point edge.
  */
 function straightenAlignedEdges(positions, affectedIndices) {
-  for (let idx = 0; idx < positions.edges.length; idx++) {
-    if (affectedIndices && !affectedIndices.has(idx)) continue;
-    const edge = positions.edges[idx];
-    if (edge.waypoints.length <= 2) continue;
-
-    const srcPos = positions.nodes.get(edge.source);
-    const tgtPos = positions.nodes.get(edge.target);
-    if (!srcPos || !tgtPos) continue;
-
-    const dx = Math.abs(srcPos.x - tgtPos.x);
-    const dy = Math.abs(srcPos.y - tgtPos.y);
-
-    if (dx <= ALIGN_TOLERANCE && dy > ALIGN_TOLERANCE) {
-      // Vertically aligned — check if straightening would cross intermediate nodes
-      const x = (srcPos.x + tgtPos.x) / 2;
-      const minY = Math.min(srcPos.y, tgtPos.y);
-      const maxY = Math.max(srcPos.y, tgtPos.y);
-      if (pathBlockedByNode(positions, edge.source, edge.target, x, x, minY, maxY)) continue;
-
-      const srcY = srcPos.y < tgtPos.y ? srcPos.y + srcPos.height / 2 : srcPos.y - srcPos.height / 2;
-      const tgtY = srcPos.y < tgtPos.y ? tgtPos.y - tgtPos.height / 2 : tgtPos.y + tgtPos.height / 2;
-      edge.waypoints = [[x, srcY], [x, tgtY]];
-    } else if (dy <= ALIGN_TOLERANCE && dx > ALIGN_TOLERANCE) {
-      // Horizontally aligned — check if straightening would cross intermediate nodes
-      const y = (srcPos.y + tgtPos.y) / 2;
-      const minX = Math.min(srcPos.x, tgtPos.x);
-      const maxX = Math.max(srcPos.x, tgtPos.x);
-      if (pathBlockedByNode(positions, edge.source, edge.target, minX, maxX, y, y)) continue;
-
-      const srcX = srcPos.x < tgtPos.x ? srcPos.x + srcPos.width / 2 : srcPos.x - srcPos.width / 2;
-      const tgtX = srcPos.x < tgtPos.x ? tgtPos.x - tgtPos.width / 2 : tgtPos.x + tgtPos.width / 2;
-      edge.waypoints = [[srcX, y], [tgtX, y]];
-    }
-  }
+  // Only straighten edges that the hierarchical layout produced as straight lines
+  // but became multi-waypoint through port assignment. Router-produced multi-waypoint
+  // routes should not be straightened — the router already placed them correctly
+  // with obstacle avoidance and nudge separation.
+  //
+  // This function is now a no-op. The router handles orthogonal routing,
+  // and distributeForNode + fixDiagonalEdges handle 2-waypoint edges.
+  // Straightening was destructive: it replaced router routes with straight lines,
+  // which then needed re-processing by distributeForNode and fixDiagonalEdges,
+  // producing worse results (horizontal approach segments, lost nudge separation).
 }
 
 /**
@@ -262,6 +238,11 @@ function pathBlockedByNode(positions, srcId, tgtId, minX, maxX, minY, maxY) {
 /**
  * For 2-waypoint edges where endpoints aren't aligned (diagonal),
  * insert an L-bend midpoint to maintain orthogonality.
+ *
+ * The bend direction is chosen so the final segment approaches the target
+ * from the same direction as the target endpoint's side:
+ * - Target on top/bottom border → last segment is vertical (arrow points down/up)
+ * - Target on left/right border → last segment is horizontal (arrow points right/left)
  */
 function fixDiagonalEdges(positions, affectedIndices) {
   for (let idx = 0; idx < positions.edges.length; idx++) {
@@ -274,8 +255,16 @@ function fixDiagonalEdges(positions, affectedIndices) {
     const dy = Math.abs(sy - ty);
     if (dx <= ORTHO_TOLERANCE || dy <= ORTHO_TOLERANCE) continue;
 
-    // Insert L-bend: vertical first, then horizontal
-    edge.waypoints = [[sx, sy], [sx, ty], [tx, ty]];
+    const tgtPos = positions.nodes.get(edge.target);
+    const tgtSide = tgtPos ? detectSide(tgtPos, sx, sy) : null;
+
+    if (tgtSide === 'top' || tgtSide === 'bottom') {
+      // Arrow should approach vertically: horizontal first, then vertical
+      edge.waypoints = [[sx, sy], [tx, sy], [tx, ty]];
+    } else {
+      // Arrow should approach horizontally: vertical first, then horizontal
+      edge.waypoints = [[sx, sy], [sx, ty], [tx, ty]];
+    }
   }
 }
 

@@ -60,6 +60,9 @@ export const ZOOM_STEP = 0.1;
 /** Arrowhead marker dimensions */
 export const ARROW_SIZE = 8;
 
+/** Gap between arrowhead tip and node border (px) */
+export const ARROW_TIP_GAP = 6;
+
 /** Corner radius for rounded rectangles */
 export const ROUNDED_CORNER_RADIUS = 8;
 
