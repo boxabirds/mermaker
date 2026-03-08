@@ -352,13 +352,34 @@ export class SvgRenderer {
     return d;
   }
 
+  /**
+   * Find the midpoint of the longest segment in a route.
+   * For L-bend routes this avoids placing the label at the corner
+   * (which often overlaps a node).
+   */
   _getRouteMidpoint(waypoints) {
     if (!waypoints || waypoints.length === 0) return [0, 0];
     if (waypoints.length === 1) return waypoints[0];
-    const mid = Math.floor(waypoints.length / 2);
-    if (waypoints.length % 2 === 1) return waypoints[mid];
-    const a = waypoints[mid - 1];
-    const b = waypoints[mid];
+    if (waypoints.length === 2) {
+      return [(waypoints[0][0] + waypoints[1][0]) / 2,
+              (waypoints[0][1] + waypoints[1][1]) / 2];
+    }
+
+    // Find longest segment
+    let maxLen = 0;
+    let maxIdx = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const dx = waypoints[i + 1][0] - waypoints[i][0];
+      const dy = waypoints[i + 1][1] - waypoints[i][1];
+      const len = dx * dx + dy * dy; // squared is fine for comparison
+      if (len > maxLen) {
+        maxLen = len;
+        maxIdx = i;
+      }
+    }
+
+    const a = waypoints[maxIdx];
+    const b = waypoints[maxIdx + 1];
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   }
 }

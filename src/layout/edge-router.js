@@ -1,5 +1,5 @@
 import { getLibavoid } from './wasm-loader.js';
-import { ARROW_SIZE, ARROW_TIP_GAP } from '../util/constants.js';
+import { ARROW_SIZE } from '../util/constants.js';
 import { clipToNodeBorder } from '../util/geometry.js';
 
 /** libavoid routing flag for orthogonal routing (Router constructor — currently unused by WASM) */
@@ -287,25 +287,21 @@ export function clipRouterWaypoints(waypoints, srcPos, tgtPos) {
 
 /**
  * Clip a 2-waypoint (straight) route at node borders.
- * Pushes the target endpoint outward by ARROW_TIP_GAP for arrowhead clearance.
+ * The SVG marker (refX=ARROW_SIZE) places the arrowhead tip at the path
+ * endpoint, so the endpoint should be exactly ON the node border.
  */
 function clipStraightRoute(waypoints, srcPos, tgtPos) {
   const srcClipped = clipToNodeBorder(srcPos, waypoints[1][0], waypoints[1][1]);
   const tgtClipped = clipToNodeBorder(tgtPos, srcClipped[0], srcClipped[1]);
-  // Push target clip point outward along the approach direction
-  const dx = tgtClipped[0] - tgtPos.x;
-  const dy = tgtClipped[1] - tgtPos.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist > 0) {
-    tgtClipped[0] += (dx / dist) * ARROW_TIP_GAP;
-    tgtClipped[1] += (dy / dist) * ARROW_TIP_GAP;
-  }
   return [srcClipped, tgtClipped];
 }
 
 /**
  * Trim a multi-waypoint route from center-to-center to border-to-border.
  * Removes waypoints inside source/target nodes, clips at borders.
+ *
+ * Uses axis-aligned clipping (clipOrthogonalAtBorder) to maintain
+ * orthogonality of the router's H/V segments.
  */
 function trimMultiWaypointRoute(waypoints, srcPos, tgtPos) {
   const srcExit = findFirstOutside(waypoints, srcPos, BORDER_TOLERANCE);
@@ -316,14 +312,41 @@ function trimMultiWaypointRoute(waypoints, srcPos, tgtPos) {
   const trimmed = waypoints.slice(srcExit, tgtEntry + 1);
 
   if (srcExit > 0) {
-    trimmed.unshift(clipAtBorder(srcPos, waypoints[srcExit - 1], waypoints[srcExit]));
+    trimmed.unshift(clipOrthogonalAtBorder(srcPos, waypoints[srcExit - 1], waypoints[srcExit]));
   }
 
   if (tgtEntry < waypoints.length - 1) {
-    trimmed.push(clipAtBorder(tgtPos, waypoints[tgtEntry + 1], waypoints[tgtEntry]));
+    trimmed.push(clipOrthogonalAtBorder(tgtPos, waypoints[tgtEntry + 1], waypoints[tgtEntry]));
   }
 
   return trimmed;
+}
+
+/**
+ * Clip an orthogonal segment at a rectangular node border.
+ *
+ * Preserves orthogonality: the returned point shares one coordinate with
+ * the `outside` point and the other coordinate is on the node border.
+ * This maintains the H/V alignment of router-produced segments.
+ *
+ * Segment goes from `inside` (inside node) toward `outside` (outside node).
+ */
+function clipOrthogonalAtBorder(nodePos, inside, outside) {
+  const halfW = nodePos.width / 2;
+  const halfH = nodePos.height / 2;
+  const dx = Math.abs(inside[0] - outside[0]);
+  const dy = Math.abs(inside[1] - outside[1]);
+
+  if (dx <= dy) {
+    // Primarily vertical segment — clip at top/bottom border
+    const sign = outside[1] < inside[1] ? -1 : 1;
+    const borderY = nodePos.y + sign * halfH;
+    return [inside[0], borderY];
+  }
+  // Primarily horizontal segment — clip at left/right border
+  const sign = outside[0] < inside[0] ? -1 : 1;
+  const borderX = nodePos.x + sign * halfW;
+  return [borderX, inside[1]];
 }
 
 /** Check if point is strictly inside a node's bounding box */
@@ -352,26 +375,3 @@ function findLastOutside(waypoints, nodePos, tolerance) {
   return -1;
 }
 
-/**
- * Clip an orthogonal segment at a node border, with outward offset
- * for arrowhead clearance.
- *
- * Segment goes from `inside` (inside node) toward `outside` (outside node).
- * Returns a point ARROW_TIP_GAP pixels outside the border crossing,
- * so the arrow tip (placed at this point) has visible clearance from the node.
- */
-function clipAtBorder(nodePos, inside, outside) {
-  const halfW = nodePos.width / 2;
-  const halfH = nodePos.height / 2;
-  const dx = Math.abs(inside[0] - outside[0]);
-  const dy = Math.abs(inside[1] - outside[1]);
-
-  if (dx <= dy) {
-    const sign = outside[1] < inside[1] ? -1 : 1;
-    const borderY = nodePos.y + sign * halfH;
-    return [inside[0], borderY + sign * ARROW_TIP_GAP];
-  }
-  const sign = outside[0] < inside[0] ? -1 : 1;
-  const borderX = nodePos.x + sign * halfW;
-  return [borderX + sign * ARROW_TIP_GAP, inside[1]];
-}
