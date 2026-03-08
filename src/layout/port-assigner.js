@@ -1,5 +1,5 @@
 import { MIN_PORT_SPACING } from '../util/constants.js';
-import { detectSide } from '../util/geometry.js';
+import { detectSide, clipToNodeBorder } from '../util/geometry.js';
 
 /**
  * Assign distributed connection points on nodes so multiple edges
@@ -147,7 +147,11 @@ function sortByApproach(entries, nodePos, side) {
 /**
  * Compute evenly-distributed points along a node side.
  *
- * @param {{ x: number, y: number, width: number, height: number }} nodePos
+ * For rectangular nodes: distributes points along the flat border edge.
+ * For diamond nodes: distributes points then projects each onto the
+ * actual diamond border using clipToNodeBorder.
+ *
+ * @param {{ x: number, y: number, width: number, height: number, shape?: string }} nodePos
  * @param {'top'|'bottom'|'left'|'right'} side
  * @param {number} count
  * @returns {number[][]} Array of [x, y] points
@@ -163,13 +167,13 @@ function computeSidePoints(nodePos, side, count) {
     const naturalSpacing = sideLength / (count + 1);
     const spacing = Math.max(naturalSpacing, MIN_PORT_SPACING);
 
-    // If spacing was clamped, center the distributed span on the side
     const totalSpan = spacing * (count - 1);
     const firstOffset = (sideLength - totalSpan) / 2;
     const sideStart = nodePos.x - halfW;
 
     for (let i = 0; i < count; i++) {
-      points.push([sideStart + firstOffset + spacing * i, y]);
+      const x = sideStart + firstOffset + spacing * i;
+      points.push([x, y]);
     }
   } else {
     const x = side === 'left' ? nodePos.x - halfW : nodePos.x + halfW;
@@ -182,7 +186,17 @@ function computeSidePoints(nodePos, side, count) {
     const sideStart = nodePos.y - halfH;
 
     for (let i = 0; i < count; i++) {
-      points.push([x, sideStart + firstOffset + spacing * i]);
+      const y = sideStart + firstOffset + spacing * i;
+      points.push([x, y]);
+    }
+  }
+
+  // For non-rectangular shapes (diamond, etc.), project each point onto
+  // the actual shape border so edges connect to the visible shape, not
+  // the bounding box.
+  if (nodePos.shape === 'diamond') {
+    for (let i = 0; i < points.length; i++) {
+      points[i] = clipToNodeBorder(nodePos, points[i][0], points[i][1]);
     }
   }
 

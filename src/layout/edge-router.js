@@ -37,8 +37,12 @@ const ROUTING_PARAM = Object.freeze({
 /** Nudging gap between parallel edge segments (px) */
 const NUDGE_DISTANCE = 15;
 
-/** Shape buffer — padding around obstacles for arrowheads and routing clearance */
-const SHAPE_BUFFER = ARROW_SIZE;
+/**
+ * Shape buffer — padding around obstacles for routing clearance (px).
+ * Must be large enough that routed edges don't hug node borders,
+ * leaving room for arrowheads and edge labels to be readable.
+ */
+const SHAPE_BUFFER = 20;
 
 /**
  * Persistent router state for incremental updates during drag.
