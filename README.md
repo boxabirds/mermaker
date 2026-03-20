@@ -12,8 +12,11 @@ The goal is a `<mer-maker>` web component you can drop into any page — with Re
 
 - **Vanilla JS + SVG** — no framework, no build step for dev (`npx serve .` and ES modules)
 - **Mermaid.js** for parsing (pinned version, isolated behind an extractor layer)
-- **libdialect (HOLA)** compiled to WASM for initial orthogonal layout — clean right-angle edges
-- **libtopology** compiled to WASM for topology-preserving drag (planned)
+- **Rust ports of Adaptagrams libraries** compiled to WASM:
+  - **libdialect** (HOLA algorithm) — orthogonal layout for clean right-angle edges
+  - **libtopology** — topology-preserving drag so edges stay routed while you move nodes (planned)
+  - **libavoid** — connector routing engine (used internally by libdialect and libtopology)
+  - These are full Rust reimplementations of the original C++ [Adaptagrams](https://github.com/mjwybrow/adaptagrams) libraries, not bindings
 - Positions stored separately from mermaid text (mermaid has no position syntax)
 
 ## Status
